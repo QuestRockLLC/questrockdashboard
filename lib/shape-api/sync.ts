@@ -72,6 +72,12 @@ export type ShapeSyncOptions = {
   maxPages?: number;
   /** Skip Shape↔LP fuzzy link pass (saves time in 15-min cron). */
   skipLpFuzzyLink?: boolean;
+  /** Cron mode: upsert loans only — skip raw archive, activity log, scrub, backfill. */
+  lightweight?: boolean;
+  /** Override delay between Shape pages (0 for cron). */
+  pageDelayMs?: number;
+  /** Stop fetching pages after this many ms (leave room for DB writes). */
+  fetchBudgetMs?: number;
 };
 
 export type ShapeSyncResult = {
@@ -203,8 +209,17 @@ export async function runShapeApiSync(options: ShapeSyncOptions = {}): Promise<S
   let stoppedEarlyReason: string | undefined;
 
   const maxPages = options.maxPages ?? MAX_PAGES;
+  const pageDelayMs = options.pageDelayMs ?? PAGE_DELAY_MS;
+  const fetchBudgetMs = options.fetchBudgetMs;
+  const fetchStartedAt = Date.now();
+  const lightweight = options.lightweight === true;
 
   for (let pageNumber = 1; pageNumber <= maxPages; pageNumber++) {
+    if (fetchBudgetMs && Date.now() - fetchStartedAt >= fetchBudgetMs) {
+      stoppedEarlyReason = `fetchBudgetMs (${fetchBudgetMs}) exhausted before page ${pageNumber}; more data may remain.`;
+      break;
+    }
+
     let res: ShapeBulkExportResponse;
     try {
       res = await shapeBulkExport({
@@ -279,11 +294,42 @@ export async function runShapeApiSync(options: ShapeSyncOptions = {}): Promise<S
     seenPageFingerprints.add(fp);
 
     if (records.length < PAGE_SIZE) break;
-    await new Promise((r) => setTimeout(r, PAGE_DELAY_MS));
+    if (pageDelayMs > 0) await new Promise((r) => setTimeout(r, pageDelayMs));
   }
 
   if (pages >= maxPages && !stoppedEarlyReason) {
     stoppedEarlyReason = `Reached maxPages (${maxPages}); more data may remain in range.`;
+  }
+
+  if (lightweight) {
+    for (let i = 0; i < allLoansPayload.length; i += 500) {
+      const chunk = allLoansPayload.slice(i, i + 500);
+      const { error } = await admin.from("loans").upsert(chunk, { onConflict: "shape_record_id" });
+      if (error) throw error;
+    }
+
+    if (!stoppedEarlyReason) {
+      const watermarkIso = new Date().toISOString();
+      const { error: wmUpsertError } = await admin.from("shape_sync_watermark").upsert(
+        { id: 1, last_updated_sync_to: today, updated_at: watermarkIso },
+        { onConflict: "id" },
+      );
+      if (wmUpsertError) throw wmUpsertError;
+    }
+
+    return {
+      pages,
+      recordsProcessed,
+      recordsSkipped,
+      loansUpserted: allLoansPayload.length,
+      activityEventsWritten: 0,
+      importBatchId,
+      fields_not_found: fieldsNotFound,
+      unmappedStatuses: unmappedStatuses.size ? Array.from(unmappedStatuses).sort() : undefined,
+      syncMode: mode,
+      dateRangeDescription: dateRangeDescription,
+      stoppedEarlyReason,
+    };
   }
 
   // ── Persist raw ───────────────────────────────────────────────────────────

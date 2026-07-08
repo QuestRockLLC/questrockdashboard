@@ -1,9 +1,8 @@
 /**
- * 15-minute cron — Shape incremental sync ONLY.
+ * 15-minute cron — Shape incremental sync ONLY (lightweight).
  *
- * Previously ran Shape + LP + SLA + daily snapshot in one invocation and hit
- * FUNCTION_INVOCATION_TIMEOUT (504) on Vercel. LP / reports / heavy SLA live
- * in /api/cron/nightly and manual admin sync.
+ * Shape bulk export is ~5–7s/page; 12 pages alone exceeds Vercel's 60s limit.
+ * This route caps pages, skips heavy post-processing, and uses a fetch budget.
  *
  * Auth: Vercel Cron Bearer token or x-cron-secret header.
  */
@@ -11,7 +10,6 @@ import { NextResponse } from "next/server";
 import { isCronRequestAuthorized } from "@/lib/cron-auth";
 import { hasShapeApiConfig } from "@/lib/shape-api/config";
 import { runShapeApiSync } from "@/lib/shape-api/sync";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,25 +35,9 @@ async function handle(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const maxPagesDefault = Number(process.env.CRON_SHAPE_MAX_PAGES ?? 12);
-  const catchupMaxPages = Number(process.env.CRON_SHAPE_CATCHUP_MAX_PAGES ?? 25);
-
-  let maxPages = Number.isFinite(maxPagesDefault) && maxPagesDefault > 0 ? maxPagesDefault : 12;
-  try {
-    const admin = createSupabaseAdminClient();
-    const { data: wm } = await admin
-      .from("shape_sync_watermark")
-      .select("updated_at")
-      .eq("id", 1)
-      .maybeSingle();
-    const updatedAt = wm?.updated_at ? new Date(String(wm.updated_at)).getTime() : 0;
-    const staleHours = updatedAt ? (Date.now() - updatedAt) / (60 * 60 * 1000) : 999;
-    if (staleHours > 48 && Number.isFinite(catchupMaxPages) && catchupMaxPages > maxPages) {
-      maxPages = catchupMaxPages;
-    }
-  } catch {
-    /* use default maxPages */
-  }
+  // ~6s/page × 5 pages ≈ 30s fetch + ~10s upsert → fits in 60s Hobby limit.
+  const maxPages = Number(process.env.CRON_SHAPE_MAX_PAGES ?? 5);
+  const fetchBudgetMs = Number(process.env.CRON_SHAPE_FETCH_BUDGET_MS ?? 42_000);
 
   const results: Record<string, StepResult> = {};
 
@@ -63,7 +45,10 @@ async function handle(request: Request) {
     if (!hasShapeApiConfig()) return { skipped: true, reason: "Shape API not configured" };
     return await runShapeApiSync({
       mode: "incremental",
-      maxPages: Number.isFinite(maxPages) && maxPages > 0 ? maxPages : 12,
+      maxPages: Number.isFinite(maxPages) && maxPages > 0 ? maxPages : 5,
+      fetchBudgetMs: Number.isFinite(fetchBudgetMs) && fetchBudgetMs > 0 ? fetchBudgetMs : 42_000,
+      pageDelayMs: 0,
+      lightweight: true,
       skipLpFuzzyLink: true,
     });
   });
@@ -73,8 +58,9 @@ async function handle(request: Request) {
     {
       ok: !anyFailures,
       ranAt: new Date().toISOString(),
-      note: "Shape-only cron. LP + reports run on /api/cron/nightly.",
+      note: "Lightweight Shape cron (loans upsert only). Activity/LP/backfill run on nightly or manual sync.",
       maxPages,
+      fetchBudgetMs,
       results,
     },
     { status: anyFailures ? 207 : 200 },
