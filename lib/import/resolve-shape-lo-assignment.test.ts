@@ -77,4 +77,23 @@ describe("resolveShapeLoAssignment", () => {
     expect(res.loName).toBe("Concierge Desk");
     expect(res.assignedLoUserId).toBeNull();
   });
+
+  it("canonicalizes Zack Davis to Zachary Davis via depursLo 55", () => {
+    const zackLookup = {
+      nameToUserId: new Map([["zachary davis", "user-zack"]]),
+      emailToUserId: new Map([["zdavis@questrock.com", "user-zack"]]),
+      users: [{ id: "user-zack", full_name: "Zachary Davis", email: "zdavis@questrock.com" }],
+    };
+    const byId = resolveShapeLoAssignment({ "Shape Depurs LO Id": "55" }, zackLookup);
+    expect(byId.loName).toBe("Zachary Davis");
+    expect(byId.assignedLoUserId).toBe("user-zack");
+    expect(byId.shapeDepursLoId).toBe(55);
+
+    const byAlias = resolveShapeLoAssignment(
+      { "Loan Officer User Name": "Zack Davis" },
+      zackLookup,
+    );
+    expect(byAlias.loName).toBe("Zachary Davis");
+    expect(byAlias.assignedLoUserId).toBe("user-zack");
+  });
 });

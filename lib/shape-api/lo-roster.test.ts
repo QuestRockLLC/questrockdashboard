@@ -1,5 +1,8 @@
 import { describe, expect, it, afterEach } from "vitest";
 import {
+  getCanonicalLoName,
+  loNameFilterVariants,
+  loNamesMatch,
   parseShapeDepursLoId,
   resolveDepursLoEmailToName,
   resolveDepursLoIdToName,
@@ -31,5 +34,14 @@ describe("lo-roster", () => {
   it("maps depursLo email to display name", () => {
     expect(resolveDepursLoEmailToName("tjohnson@questrock.com")).toBe("Tyler Johnson");
     expect(resolveDepursLoEmailToName("nikksmith@questrock.com")).toBe("Nikk Smith");
+  });
+
+  it("maps Zack Davis aliases to Zachary Davis (depursLo 55)", () => {
+    expect(resolveDepursLoIdToName(55)).toBe("Zachary Davis");
+    expect(resolveDepursLoEmailToName("zdavis@questrock.com")).toBe("Zachary Davis");
+    expect(resolveNameToDepursLoId("Zack Davis")).toBe(55);
+    expect(getCanonicalLoName("Zack Davis")).toBe("Zachary Davis");
+    expect(loNamesMatch("Zack Davis", "Zachary Davis")).toBe(true);
+    expect(loNameFilterVariants("Zachary Davis")).toContain("Zack Davis");
   });
 });

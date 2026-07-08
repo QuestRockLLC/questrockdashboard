@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { loNameFilterVariants, loNamesMatch } from "@/lib/shape-api/lo-roster";
 import { passesGlobalFilters } from "./global-filters";
 import { DEFAULT_WINDOW_DAYS, windowStartIso, type FetchShapeLoansOptions } from "./query-loans";
 import type { LoDashboardLoanRow } from "./lo-dashboard";
@@ -45,8 +46,11 @@ export async function fetchLoDashboardLoans(
         orParts.push(`assigned_loan_officer_user_id.eq.${options.assignedLoUserId}`);
       }
       if (options.assignedLoName?.trim()) {
-        // ilike = case-insensitive exact match — handles "Zachary Davis" vs "zachary davis" etc.
-        orParts.push(`assigned_loan_officer_name.ilike.${options.assignedLoName.trim()}`);
+        const nameVariants = loNameFilterVariants(options.assignedLoName);
+        for (const variant of nameVariants) {
+          // ilike = case-insensitive exact match — includes Zack Davis aliases for Zachary Davis
+          orParts.push(`assigned_loan_officer_name.ilike.${variant.trim()}`);
+        }
       }
       if (orParts.length) q = q.or(orParts.join(","));
     }
@@ -61,16 +65,14 @@ export async function fetchLoDashboardLoans(
     offset += pageSize;
   }
 
-  const loName = options.assignedLoName?.trim()?.toLowerCase() ?? null;
+  const loName = options.assignedLoName?.trim() ?? null;
   const loUserId = options.assignedLoUserId ?? null;
 
   const scoped =
     loUserId || loName
       ? loans.slice(0, maxRows).filter((row) => {
-          // Match by user ID (exact)
           if (loUserId && row.assigned_loan_officer_user_id === loUserId) return true;
-          // Match by name (case-insensitive)
-          if (loName && row.assigned_loan_officer_name?.trim().toLowerCase() === loName) return true;
+          if (loName && loNamesMatch(row.assigned_loan_officer_name, loName)) return true;
           return false;
         })
       : loans.slice(0, maxRows);

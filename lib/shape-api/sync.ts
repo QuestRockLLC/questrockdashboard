@@ -68,6 +68,10 @@ export type ShapeSyncOptions = {
   mode?: ShapeSyncMode;
   dateFrom?: string;
   dateTo?: string;
+  /** Cap pages per run (cron safety). Omit for unlimited up to MAX_PAGES. */
+  maxPages?: number;
+  /** Skip Shape↔LP fuzzy link pass (saves time in 15-min cron). */
+  skipLpFuzzyLink?: boolean;
 };
 
 export type ShapeSyncResult = {
@@ -198,7 +202,9 @@ export async function runShapeApiSync(options: ShapeSyncOptions = {}): Promise<S
   const seenPageFingerprints = new Set<string>();
   let stoppedEarlyReason: string | undefined;
 
-  for (let pageNumber = 1; pageNumber <= MAX_PAGES; pageNumber++) {
+  const maxPages = options.maxPages ?? MAX_PAGES;
+
+  for (let pageNumber = 1; pageNumber <= maxPages; pageNumber++) {
     let res: ShapeBulkExportResponse;
     try {
       res = await shapeBulkExport({
@@ -276,8 +282,8 @@ export async function runShapeApiSync(options: ShapeSyncOptions = {}): Promise<S
     await new Promise((r) => setTimeout(r, PAGE_DELAY_MS));
   }
 
-  if (pages >= MAX_PAGES && !stoppedEarlyReason) {
-    stoppedEarlyReason = `Reached MAX_PAGES (${MAX_PAGES}); stopping to avoid infinite loop.`;
+  if (pages >= maxPages && !stoppedEarlyReason) {
+    stoppedEarlyReason = `Reached maxPages (${maxPages}); more data may remain in range.`;
   }
 
   // ── Persist raw ───────────────────────────────────────────────────────────
@@ -319,13 +325,15 @@ export async function runShapeApiSync(options: ShapeSyncOptions = {}): Promise<S
   }
 
   // ── Shape ↔ LP fuzzy UUID linking ─────────────────────────────────────────
-  const unlinkedRecordIds = allLoansPayload
-    .filter((l) => !l.lendingpad_loan_uuid && PIPELINE_STATUSES_FOR_LP_FUZZY.has(String(l.status_raw ?? "")))
-    .map((l) => l.shape_record_id as number)
-    .filter((id) => Number.isFinite(id));
+  if (!options.skipLpFuzzyLink) {
+    const unlinkedRecordIds = allLoansPayload
+      .filter((l) => !l.lendingpad_loan_uuid && PIPELINE_STATUSES_FOR_LP_FUZZY.has(String(l.status_raw ?? "")))
+      .map((l) => l.shape_record_id as number)
+      .filter((id) => Number.isFinite(id));
 
-  if (unlinkedRecordIds.length > 0) {
-    await linkShapeLoansToLendingPad(admin, { shapeRecordIds: unlinkedRecordIds });
+    if (unlinkedRecordIds.length > 0) {
+      await linkShapeLoansToLendingPad(admin, { shapeRecordIds: unlinkedRecordIds });
+    }
   }
 
   // ── Fetch upserted loan IDs (we need the DB uuid for activity log FKs) ────
@@ -471,13 +479,15 @@ export async function runShapeApiSync(options: ShapeSyncOptions = {}): Promise<S
     }
   }
 
-  // ── Update watermark ──────────────────────────────────────────────────────
-  const watermarkIso = new Date().toISOString();
-  const { error: wmUpsertError } = await admin.from("shape_sync_watermark").upsert(
-    { id: 1, last_updated_sync_to: today, updated_at: watermarkIso },
-    { onConflict: "id" },
-  );
-  if (wmUpsertError) throw wmUpsertError;
+  // ── Update watermark (only when full range consumed — avoid skipping records) ─
+  if (!stoppedEarlyReason) {
+    const watermarkIso = new Date().toISOString();
+    const { error: wmUpsertError } = await admin.from("shape_sync_watermark").upsert(
+      { id: 1, last_updated_sync_to: today, updated_at: watermarkIso },
+      { onConflict: "id" },
+    );
+    if (wmUpsertError) throw wmUpsertError;
+  }
 
   return {
     pages,

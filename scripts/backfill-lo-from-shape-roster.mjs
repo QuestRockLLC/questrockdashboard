@@ -32,6 +32,8 @@ const NAME_ALIASES = {
   "gregory bethea": "gregory bethea jr",
   "nikk smith": "nikkolas smith",
   "nikkolas smith": "nikk smith",
+  "zack davis": "zachary davis",
+  "zach davis": "zachary davis",
 };
 
 const DEPURS_BY_ID = new Map(SHAPE_LO_ROSTER.map((e) => [e.depursLo, e.name]));

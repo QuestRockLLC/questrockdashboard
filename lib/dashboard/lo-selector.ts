@@ -1,3 +1,5 @@
+import { loNamesMatch } from "@/lib/shape-api/lo-roster";
+
 /** LOs hidden from the LO dashboard officer filter (inactive / not on this workspace). */
 export const EXCLUDED_LO_DASHBOARD_NAMES = new Set([
   "Jessica Sherard",
@@ -58,6 +60,6 @@ export function loanMatchesLoFilter(
   }
   if (loan.assigned_loan_officer_user_id === ownerFilter) return true;
   const selected = options.find((o) => o.id === ownerFilter);
-  if (selected?.full_name && loan.assigned_loan_officer_name?.trim() === selected.full_name.trim()) return true;
+  if (selected?.full_name && loNamesMatch(loan.assigned_loan_officer_name, selected.full_name)) return true;
   return false;
 }

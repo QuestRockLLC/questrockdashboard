@@ -6,6 +6,8 @@ export type ShapeLoRosterEntry = {
   name: string;
   depursLo: number;
   email?: string;
+  /** Alternate Shape display names (e.g. Zack Davis → Zachary Davis). */
+  aliases?: string[];
 };
 
 export const DEFAULT_SHAPE_LO_ROSTER: ShapeLoRosterEntry[] = [
@@ -17,7 +19,12 @@ export const DEFAULT_SHAPE_LO_ROSTER: ShapeLoRosterEntry[] = [
   { name: "Jessica Sherard", depursLo: 37, email: "jsherard@questrock.com" },
   { name: "Ray Conway", depursLo: 16, email: "rconway@questrock.com" },
   { name: "Gregory Bethea Jr", depursLo: 58, email: "gbethea@questrock.com" },
-  { name: "Zachary Davis", depursLo: 55, email: "zdavis@questrock.com" },
+  {
+    name: "Zachary Davis",
+    depursLo: 55,
+    email: "zdavis@questrock.com",
+    aliases: ["Zack Davis", "Zach Davis", "Zachary"],
+  },
   { name: "Jason Friday", depursLo: 52, email: "jfriday@questrock.com" },
   { name: "Concierge", depursLo: 31 },
 ];
@@ -44,10 +51,14 @@ export function getShapeLoRoster(): ShapeLoRosterEntry[] {
         cachedRoster = parsed.map((entry) => {
           const o = entry as Record<string, unknown>;
           const email = String(o.email ?? "").trim().toLowerCase();
+          const aliases = Array.isArray(o.aliases)
+            ? o.aliases.map((a) => String(a).trim()).filter(Boolean)
+            : undefined;
           return {
             name: String(o.name ?? "").trim(),
             depursLo: Number(o.depursLo ?? o.id),
             ...(email ? { email } : {}),
+            ...(aliases?.length ? { aliases } : {}),
           };
         });
         cachedById = null;
@@ -116,6 +127,60 @@ export function resolveDepursLoEmailToName(email: string | null | undefined): st
   return depursLoByEmailMap().get(key) ?? null;
 }
 
+function rosterNameVariants(entry: ShapeLoRosterEntry): string[] {
+  return [entry.name, ...(entry.aliases ?? [])].map((n) => n.trim()).filter(Boolean);
+}
+
+/** Canonical roster display name for any alias (e.g. Zack Davis → Zachary Davis). */
+export function getCanonicalLoName(name: string | null | undefined): string | null {
+  const query = normalizeLoName(name);
+  if (!query) return null;
+
+  for (const entry of getShapeLoRoster()) {
+    for (const variant of rosterNameVariants(entry)) {
+      if (normalizeLoName(variant) === query) return entry.name;
+    }
+  }
+
+  return null;
+}
+
+/** All Shape display strings that refer to the same LO (for dashboard filters). */
+export function loNameFilterVariants(name: string | null | undefined): string[] {
+  const query = normalizeLoName(name);
+  if (!query) return [];
+
+  for (const entry of getShapeLoRoster()) {
+    for (const variant of rosterNameVariants(entry)) {
+      if (normalizeLoName(variant) === query) {
+        return [...new Set(rosterNameVariants(entry))];
+      }
+    }
+  }
+
+  const raw = String(name ?? "").trim();
+  return raw ? [raw] : [];
+}
+
+/** True when two LO labels refer to the same roster officer. */
+export function loNamesMatch(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): boolean {
+  const na = normalizeLoName(a);
+  const nb = normalizeLoName(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+
+  const ca = getCanonicalLoName(a);
+  const cb = getCanonicalLoName(b);
+  if (ca && cb) return ca === cb;
+  if (ca && normalizeLoName(ca) === nb) return true;
+  if (cb && normalizeLoName(cb) === na) return true;
+
+  return false;
+}
+
 /** Display name → Shape depursLo id (for outbound assign API). */
 export function resolveNameToDepursLoId(loName: string | null | undefined): number | null {
   const query = normalizeLoName(loName);
@@ -123,7 +188,9 @@ export function resolveNameToDepursLoId(loName: string | null | undefined): numb
 
   const roster = getShapeLoRoster();
   for (const entry of roster) {
-    if (normalizeLoName(entry.name) === query) return entry.depursLo;
+    for (const variant of rosterNameVariants(entry)) {
+      if (normalizeLoName(variant) === query) return entry.depursLo;
+    }
   }
 
   for (const entry of roster) {

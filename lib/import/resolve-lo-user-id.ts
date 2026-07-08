@@ -22,6 +22,8 @@ const BUILTIN_NAME_ALIASES: Record<string, string> = {
   "gregory bethea": "gregory bethea jr",
   "nikk smith": "nikkolas smith",
   "nikkolas smith": "nikk smith",
+  "zack davis": "zachary davis",
+  "zach davis": "zachary davis",
 };
 
 function nameAliasMap(): Map<string, string> {

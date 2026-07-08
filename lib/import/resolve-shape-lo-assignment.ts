@@ -2,6 +2,7 @@ import { normalizeLoName } from "@/lib/import/build-loan-payload";
 import { isPlausibleLoName } from "@/lib/import/plausible-lo-name";
 import { resolveLoUserId, type LoUserRow } from "@/lib/import/resolve-lo-user-id";
 import {
+  getCanonicalLoName,
   looksLikeShapeDepursLoId,
   parseShapeDepursLoId,
   resolveDepursLoEmailToName,
@@ -71,6 +72,10 @@ export function resolveShapeLoAssignment(
   if (!loName && loFieldRaw && !looksLikeShapeDepursLoId(loFieldRaw) && isPlausibleLoName(loFieldRaw)) {
     loName = normalizeLoName(loFieldRaw) || loFieldRaw;
   }
+
+  const canonical =
+    getCanonicalLoName(loName) ?? getCanonicalLoName(loFieldRaw) ?? null;
+  if (canonical) loName = canonical;
 
   if (loName && !isPlausibleLoName(loName)) {
     loName = null;
