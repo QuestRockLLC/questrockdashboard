@@ -144,6 +144,27 @@ describe("lo-dashboard", () => {
     expect(isPipelineEligible(row)).toBe(false);
   });
 
+  it("excludes withdrawn LP and Shape rows from pipeline", () => {
+    expect(
+      isPipelineEligible(
+        baseRow({
+          lendingpad_loan_uuid: "lp-99",
+          lendingpad_status_raw: "Withdrawn",
+          status_raw: "Verification A",
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      isPipelineEligible(
+        baseRow({
+          record_type: "Loans",
+          status_raw: "Withdrawn",
+          shape_record_id: 65400,
+        }),
+      ),
+    ).toBe(false);
+  });
+
   it("computes alert SLA when underwriting is overdue", () => {
     const now = new Date("2026-06-26T12:00:00.000Z");
     const row = baseRow({

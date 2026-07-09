@@ -1,6 +1,7 @@
 /**
  * Pull loan list from LendingPad GET /integrations/list/loans and merge into public.loans.
- * - Shape remains source for status_raw / current_stage when shape_record_id is set.
+ * - Shape remains source for status_raw / current_stage when shape_record_id is set,
+ *   except LP terminal statuses (Withdrawn/Denied/Cancelled) which override Shape.
  * - LP writes lendingpad_status_raw + lendingpad_status_at always; updates current_stage for LP-only rows.
  * - Sources (in order): public.lendingpad_user_credentials; else LENDINGPAD_LIST_USER_ID; else LENDINGPAD_OFFICERS_JSON.
  * - API max take=25 per LendingPad guide.
@@ -181,6 +182,19 @@ function lpStage(item: NormalizedLpLoanListItem) {
   return item.statusRaw ? mapLendingPadStatusToStage(item.statusRaw) : null;
 }
 
+function isLpTerminalStatus(statusRaw: string | null | undefined): boolean {
+  if (!statusRaw?.trim()) return false;
+  const key = statusRaw.trim().replace(/\s+/g, " ").toLowerCase();
+  return (
+    key === "withdrawn" ||
+    key === "denied" ||
+    key === "cancelled" ||
+    key === "canceled" ||
+    key === "closed" ||
+    key === "funded"
+  );
+}
+
 function buildInsertPayload(
   item: NormalizedLpLoanListItem,
   importBatchId: string,
@@ -305,6 +319,9 @@ function buildUpdatePayload(
   if (existing.shape_record_id == null) {
     if (item.statusRaw) p.status_raw = item.statusRaw;
     if (stage != null) p.current_stage = stage;
+  } else if (item.statusRaw && isLpTerminalStatus(item.statusRaw)) {
+    p.status_raw = item.statusRaw;
+    p.current_stage = "withdrawn";
   }
   return p;
 }
