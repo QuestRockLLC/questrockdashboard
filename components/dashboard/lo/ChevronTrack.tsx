@@ -25,13 +25,7 @@ export function ChevronTrack({
   activePhase = "all",
   onPhaseClick,
 }: Props) {
-  const trackForMilestones =
-    verificationTrack === "Pending" || verificationTrack === "Verification A"
-      ? "Verification A"
-      : verificationTrack === "Verification B"
-        ? "Verification B"
-        : verificationTrack;
-  const milestones = milestonesForVerificationTrack(trackForMilestones);
+  const milestones = milestonesForVerificationTrack(verificationTrack);
 
   return (
     <div

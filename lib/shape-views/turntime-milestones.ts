@@ -1,8 +1,6 @@
 export type TurntimePhaseKey =
-  | "verificationA"
-  | "verificationB"
-  | "packageOutA"
-  | "packageOutB"
+  | "verification"
+  | "packageOut"
   | "validation"
   | "underwriting"
   | "ctc";
@@ -20,31 +18,17 @@ export type TurntimeMilestone = {
 
 export const TURNTIME_MILESTONES: readonly TurntimeMilestone[] = [
   {
-    key: "verificationA",
-    title: "Verification A",
-    detail: "Bank Statement, Full Doc, DSCR",
-    time: "2-72 hours",
-    slaHours: 72,
-  },
-  {
-    key: "verificationB",
-    title: "Verification B",
-    detail: "Extended verification",
-    time: "72-120 hours",
+    key: "verification",
+    title: "Verification",
+    detail: "Bank Statement, Full Doc, DSCR — track A or B applies internally",
+    time: "2 hours – 5 days",
     slaHours: 120,
   },
   {
-    key: "packageOutA",
-    title: "Package Out A",
-    detail: "In House",
-    time: "30 minutes - 4 hours",
-    slaHours: 4,
-  },
-  {
-    key: "packageOutB",
-    title: "Package Out B",
-    detail: "Brokered",
-    time: "Up to 24 hours",
+    key: "packageOut",
+    title: "Package Out",
+    detail: "In-house or brokered disclosure package",
+    time: "30 minutes – 24 hours",
     slaHours: 24,
   },
   {
@@ -71,24 +55,17 @@ export const TURNTIME_MILESTONES: readonly TurntimeMilestone[] = [
 ] as const;
 
 export const NEUTRAL_MILESTONE_PROGRESS: Record<TurntimePhaseKey, MilestoneProgressState> = {
-  verificationA: "open",
-  verificationB: "open",
-  packageOutA: "open",
-  packageOutB: "open",
+  verification: "open",
+  packageOut: "open",
   validation: "open",
   underwriting: "open",
   ctc: "open",
 };
 
+/** @deprecated Track is kept for internal SLA logic only; UI shows a single Verification milestone. */
 export function milestonesForVerificationTrack(
-  verificationTrack: "Verification A" | "Verification B" | "All",
+  _verificationTrack?: "Verification A" | "Verification B" | "All" | "Pending",
 ): TurntimeMilestone[] {
-  if (verificationTrack === "Verification A") {
-    return TURNTIME_MILESTONES.filter((step) => step.key !== "verificationB");
-  }
-  if (verificationTrack === "Verification B") {
-    return TURNTIME_MILESTONES.filter((step) => step.key !== "verificationA");
-  }
   return [...TURNTIME_MILESTONES];
 }
 

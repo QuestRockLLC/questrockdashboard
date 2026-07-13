@@ -52,15 +52,17 @@ function PhaseBadge({ label }: { label: string }) {
 }
 
 function VerifBadge({ track }: { track: string }) {
+  const label =
+    track === "Verification B" ? "Verification (B)" : track === "Verification A" ? "Verification (A)" : track;
   const cls =
-    track === "Verification A"
-      ? "bg-[#dbeafe] text-[#1e40af]"
-      : track === "Verification B"
-        ? "bg-[#ede9fe] text-[#5b21b6]"
+    track === "Verification B"
+      ? "bg-[#ede9fe] text-[#5b21b6]"
+      : track === "Verification A"
+        ? "bg-[#dbeafe] text-[#1e40af]"
         : "bg-[var(--lo-chip-bg)] text-[var(--lo-muted)]";
   return (
-    <span className={`${cls} inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium whitespace-nowrap`}>
-      {track}
+    <span className={`${cls} inline-flex items-center rounded-md px-2 py-0.5 text-[12px] font-medium whitespace-nowrap`}>
+      {label}
     </span>
   );
 }
@@ -121,9 +123,9 @@ export function LeadsWorkspace({
       {/* Header */}
       <div className="flex shrink-0 flex-col gap-3 border-b border-[var(--lo-border)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="lo-accent-text text-[10px] font-bold uppercase tracking-widest">Shape CRM</p>
-          <h2 className="lo-heading text-lg font-bold tracking-tight">Leads</h2>
-          <p className="lo-muted mt-0.5 text-[11px]">{sectionHint} · {visible.length} records</p>
+          <p className="lo-accent-text text-[13px] font-bold uppercase tracking-widest">Shape CRM</p>
+          <h2 className="lo-heading text-xl font-bold tracking-tight">Leads</h2>
+          <p className="lo-muted mt-0.5 text-[13px]">{sectionHint} · {visible.length} records</p>
         </div>
         <div className="lo-segment-track inline-flex gap-1 rounded-xl p-1">
           {tabs.map((tab) => (

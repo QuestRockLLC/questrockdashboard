@@ -187,22 +187,22 @@ export function leadPhaseLabelFor(row: LoDashboardLoanRow): string {
 export function inferLeadPhase(row: LoDashboardLoanRow): TurntimePhaseKey {
   const status = normalizeStatus(row.status_raw);
   if (!status || status === "New Lead" || status === "Not Contacted" || status === "Attempting Contact") {
-    return "verificationA";
+    return "verification";
   }
   if (GREEN_STATUSES.has(status)) {
-    if (status === "App Sent" || status === "App Started") return "verificationA";
+    if (status === "App Sent" || status === "App Started") return "verification";
     if (status === "Verification Docs Requested" || status === "Verification Docs Received") {
-      return getVerificationTrack(row) === "Verification B" ? "verificationB" : "verificationA";
+      return "verification";
     }
-    return "packageOutA";
+    return "packageOut";
   }
-  if (status.includes("Verification")) return getVerificationTrack(row) === "Verification B" ? "verificationB" : "verificationA";
-  if (status.includes("Package")) return row.is_brokered ? "packageOutB" : "packageOutA";
+  if (status.includes("Verification")) return "verification";
+  if (status.includes("Package")) return "packageOut";
   if (status.includes("Validation") || status.includes("Processing")) return "validation";
   if (status.includes("UW") || status.includes("Underwriting")) return "underwriting";
   if (status.includes("Clear to Close") || status === "CTC") return "ctc";
   if (CLOSED_FAMILY.has(status)) return "ctc";
-  return "verificationA";
+  return "verification";
 }
 
 function contactAttemptsFor(row: LoDashboardLoanRow): number {
@@ -352,13 +352,12 @@ function milestoneTrackFor(row: LoDashboardLoanRow): "Verification A" | "Verific
   return track === "Verification B" ? "Verification B" : "Verification A";
 }
 
-function packageOutKey(row: LoDashboardLoanRow): "packageOutA" | "packageOutB" {
-  return row.is_brokered ? "packageOutB" : "packageOutA";
+function packageOutKey(_row: LoDashboardLoanRow): "packageOut" {
+  return "packageOut";
 }
 
-function verificationKey(row: LoDashboardLoanRow): "verificationA" | "verificationB" {
-  const track = getVerificationTrack(row);
-  return track === "Verification B" ? "verificationB" : "verificationA";
+function verificationKey(_row: LoDashboardLoanRow): "verification" {
+  return "verification";
 }
 
 function activeMilestoneKey(row: LoDashboardLoanRow): TurntimePhaseKey {
@@ -384,11 +383,9 @@ function activeMilestoneKey(row: LoDashboardLoanRow): TurntimePhaseKey {
 
 function milestoneStartAt(row: LoDashboardLoanRow, key: TurntimePhaseKey): Date | null {
   switch (key) {
-    case "verificationA":
-    case "verificationB":
+    case "verification":
       return parseTs(row.verification_started_at) ?? parseTs(row.lead_created_at);
-    case "packageOutA":
-    case "packageOutB":
+    case "packageOut":
       return parseTs(row.verification_completed_at) ?? parseTs(row.submitted_to_processing_at);
     case "validation":
       return parseTs(row.submitted_to_processing_at) ?? parseTs(row.processing_completed_at);
@@ -403,11 +400,9 @@ function milestoneStartAt(row: LoDashboardLoanRow, key: TurntimePhaseKey): Date 
 
 function milestoneCompletedAt(row: LoDashboardLoanRow, key: TurntimePhaseKey): Date | null {
   switch (key) {
-    case "verificationA":
-    case "verificationB":
+    case "verification":
       return parseTs(row.verification_completed_at);
-    case "packageOutA":
-    case "packageOutB":
+    case "packageOut":
       return parseTs(row.submitted_to_processing_at);
     case "validation":
       return parseTs(row.processing_completed_at) ?? parseTs(row.submitted_to_uw_at);
@@ -456,11 +451,7 @@ export function deriveMilestoneProgress(
     }
   }
 
-  // Hide non-applicable verification track
-  const track = getVerificationTrack(row);
-  if (track === "Verification A" || track === "Pending") progress.verificationB = "open";
-  if (track === "Verification B") progress.verificationA = "open";
-
+  // Verification track (A/B) still computed for detail views; milestone UI is unified.
   return progress;
 }
 
