@@ -21,6 +21,17 @@ export type ShapeReportLead = {
   noteSource: "ai_note" | "recent" | "sidebar" | "loan_notes" | null;
   noteAt: string | null;
   noteQualityFlags: NoteQualityFlag[];
+  /** Raw note text by source, kept separately so the AI comment step can
+   * synthesize across all of them rather than just the single "best" one. */
+  noteRaw: {
+    sidebar: string | null;
+    aiNote: string | null;
+    recent: string | null;
+    gamePlan: string | null;
+  };
+  /** AI-synthesized one-line comment (notes + status + source), populated in
+   * build-payload.ts after the lead list is assembled. Null until then. */
+  aiNoteComment: string | null;
 };
 
 export type ShapeReportPeriod = {
@@ -51,7 +62,11 @@ export type ShapeNoteHighlight = {
   borrowerName: string;
   loName: string | null;
   source: CanonicalShapeSource | "Other";
+  /** Raw note text (kept for audit/evidence; no longer shown directly in the email). */
   snippet: string;
+  /** AI-synthesized comment shown in the email — falls back to `snippet` if
+   * AI generation is unavailable. */
+  aiComment: string;
   noteAt: string | null;
   flags: NoteQualityFlag[];
 };

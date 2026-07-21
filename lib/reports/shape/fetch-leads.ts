@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { shapeBulkExport } from "@/lib/shape-api/client";
 import { mapApiRecordToCsvLike } from "@/lib/shape-api/field-map";
 import { getCanonicalLoName } from "@/lib/shape-api/lo-roster";
+import { SHAPE_ASSIGNMENT_DEPT_FIELDS } from "@/lib/shape-api/shape-dept-fields";
 import type { ShapeBulkExportResponse } from "@/lib/shape-api/types";
 import { parseMaybeTimestamp, type ShapeKpiCsvRow } from "@/lib/import/shape-kpi";
 
@@ -37,6 +38,16 @@ const EXCLUDED_REPORT_RECORD_TYPES = new Set([
   "contacts",
 ]);
 
+// Assignment fields (depursLo/Li/Lp/Po/Cl + every display-name variant Shape
+// uses for this account, e.g. "LOA User Name") — without the full set, most
+// leads come back with no resolvable LO name and the report undercounts
+// "Assigned" (mirrors SHAPE_BULK_EXPORT_FIELDS_SYNC, which gets this right).
+const SHAPE_ASSIGNMENT_FIELDS = Array.from(
+  new Set(
+    SHAPE_ASSIGNMENT_DEPT_FIELDS.flatMap((dept) => [dept.apiKey, ...dept.displayKeys]),
+  ),
+);
+
 const SHAPE_REPORT_EXPORT_FIELDS = [
   "leadid",
   "recordtype",
@@ -44,8 +55,7 @@ const SHAPE_REPORT_EXPORT_FIELDS = [
   "lastActivityDate",
   "firstname",
   "lastname",
-  "depursLo",
-  "Loan Officer User Name",
+  ...SHAPE_ASSIGNMENT_FIELDS,
   "mstrstatus1",
   "Lead Status",
   "leadsource",
@@ -270,10 +280,15 @@ export async function fetchShapeReportLeads(
     const rawLoName = stringValue(row["Loan Officer User Name"]);
     const loName = getCanonicalLoName(rawLoName) ?? rawLoName;
 
+    const rawSidebar = stringValue(row["Notes Sidebar"]);
+    const rawAiNote = stringValue(row["Notes Sidebar AI Note"]);
+    const rawRecent = stringValue(row["Recent Note"]);
+    const rawGamePlan = stringValue(row["Game Plan Notes"]);
+
     const note = extractLeadNote({
-      notesSidebar: row["Notes Sidebar"],
-      notesSidebarAi: row["Notes Sidebar AI Note"],
-      recentNotes: row["Recent Note"] ?? row["Game Plan Notes"],
+      notesSidebar: rawSidebar,
+      notesSidebarAi: rawAiNote,
+      recentNotes: rawRecent ?? rawGamePlan,
       statusRaw: status,
       lastUpdatedAt: updatedAt,
     });
@@ -293,6 +308,13 @@ export async function fetchShapeReportLeads(
       noteSource: note.source,
       noteAt: note.noteAt,
       noteQualityFlags: note.flags,
+      noteRaw: {
+        sidebar: rawSidebar,
+        aiNote: rawAiNote,
+        recent: rawRecent,
+        gamePlan: rawGamePlan,
+      },
+      aiNoteComment: null,
     });
   }
 

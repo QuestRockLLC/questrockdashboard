@@ -92,7 +92,7 @@ export function renderShapeReportEmail(
           <td style="padding:12px;border-bottom:1px solid #e2e8f0;color:#475569;font-size:12px">${esc(n.source)}</td>
           <td style="padding:12px;border-bottom:1px solid #e2e8f0;color:#475569;font-size:12px">${esc(n.loName ?? "Unassigned")}</td>
           <td style="padding:12px;border-bottom:1px solid #e2e8f0;color:#475569;font-size:13px;line-height:19px">
-            ${esc(n.snippet)}
+            ${esc(n.aiComment)}
             ${
               n.flags.length
                 ? `<div style="margin-top:5px;color:#b45309;font-size:10px;text-transform:uppercase;letter-spacing:.5px">${esc(n.flags.join(" · ").replaceAll("_", " "))}</div>`
@@ -267,12 +267,13 @@ export function renderShapeReportEmail(
           <tr>
             <td style="padding:14px 32px 30px">
               <h2 style="margin:0 0 12px;color:#12365a;font-size:18px">Latest note highlights</h2>
+              <p style="margin:0 0 10px;color:#64748b;font-size:12px">AI-synthesized from Shape notes, call/transcript summaries, and CRM status — not a raw note dump.</p>
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:10px;border-collapse:separate;overflow:hidden">
                 <tr style="background:#f8fafc">
                   <th align="left" style="padding:11px 12px;color:#475569;font-size:11px">BORROWER</th>
                   <th align="left" style="padding:11px 12px;color:#475569;font-size:11px">SOURCE</th>
                   <th align="left" style="padding:11px 12px;color:#475569;font-size:11px">LO</th>
-                  <th align="left" style="padding:11px 12px;color:#475569;font-size:11px">LATEST NOTE</th>
+                  <th align="left" style="padding:11px 12px;color:#475569;font-size:11px">AI NOTE COMMENT</th>
                 </tr>
                 ${noteRows || `<tr><td colspan="4" style="padding:18px;color:#64748b;font-size:13px">No usable notes in this reporting period.</td></tr>`}
               </table>
@@ -323,10 +324,10 @@ export function renderShapeReportEmail(
     "SOURCE INSIGHTS",
     ...payload.aiSummary.sourceInsights.map((s) => `  • ${s}`),
     "",
-    "NOTE HIGHLIGHTS",
+    "NOTE HIGHLIGHTS (AI-synthesized)",
     ...payload.noteHighlights.map(
       (note) =>
-        `  • ${note.borrowerName} · ${note.source} · ${note.loName ?? "Unassigned"}: ${note.snippet}`,
+        `  • ${note.borrowerName} · ${note.source} · ${note.loName ?? "Unassigned"}: ${note.aiComment}`,
     ),
     "",
     `Run ID: ${payload.runId}`,

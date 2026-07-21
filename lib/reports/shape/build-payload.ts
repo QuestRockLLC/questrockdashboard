@@ -2,6 +2,7 @@ import { randomUUID, createHash } from "node:crypto";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { buildAiNoteComments } from "./ai-note-comment";
 import { buildShapeAiSummary } from "./ai-summary";
 import { fetchShapeReportLeads } from "./fetch-leads";
 import { getShapeReportPeriod } from "./period-utils";
@@ -58,9 +59,38 @@ function buildNoteHighlights(leads: ShapeReportPayload["leads"]): ShapeNoteHighl
       loName: l.loName,
       source: l.source,
       snippet: l.noteSnippet!,
+      aiComment: l.aiNoteComment ?? l.noteSnippet!,
       noteAt: l.noteAt,
       flags: l.noteQualityFlags,
     }));
+}
+
+/**
+ * Synthesizes an "AI note comment" (notes + call/transcript summaries + CRM
+ * status/source) for every lead that has a note, and mutates `lead.aiNoteComment`
+ * in place so downstream consumers (aiSummary, note highlights) both use the
+ * synthesized comment instead of a raw note quote.
+ */
+async function attachAiNoteComments(leads: ShapeReportPayload["leads"]): Promise<void> {
+  const candidates = leads.filter((l) => l.noteSnippet).slice(0, 20);
+  if (candidates.length === 0) return;
+
+  const comments = await buildAiNoteComments(
+    candidates.map((lead) => ({
+      loanId: lead.loanId,
+      borrowerName: lead.borrowerName,
+      source: lead.source,
+      loName: lead.loName,
+      status: lead.status,
+      noteRaw: lead.noteRaw,
+      noteQualityFlags: lead.noteQualityFlags,
+    })),
+  );
+
+  for (const lead of candidates) {
+    const comment = comments.get(lead.loanId);
+    if (comment) lead.aiNoteComment = comment;
+  }
 }
 
 export async function buildShapeReportPayload(
@@ -74,6 +104,10 @@ export async function buildShapeReportPayload(
 
   const liveShape = await fetchShapeReportLeads(admin, period, cadence);
   const { leads, sourceBreakdown } = liveShape;
+
+  // Populate leads[].aiNoteComment before the AI summary and note-highlights
+  // steps so both surface the synthesized comment instead of a raw note quote.
+  await attachAiNoteComments(leads);
 
   const aiSummary = await buildShapeAiSummary({
     cadence,

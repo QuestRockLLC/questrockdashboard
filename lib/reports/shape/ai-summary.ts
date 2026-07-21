@@ -41,14 +41,15 @@ function buildTemplateSummary(input: AiSummaryInput): ShapeAiSummary {
   if (withNotes.length > 0) {
     const hot = withNotes.slice(0, 3);
     for (const l of hot) {
+      const comment = l.aiNoteComment ?? l.noteSnippet;
       topOpportunities.push(
-        `${l.borrowerName} (${l.source}) — ${l.noteSnippet}${l.loName ? ` · LO: ${l.loName}` : ""}`,
+        `${l.borrowerName} (${l.source}) — ${comment}${l.loName ? ` · LO: ${l.loName}` : ""}`,
       );
       evidence.push({
         loanId: l.loanId,
         shapeLeadId: l.shapeLeadId,
         noteAt: l.noteAt,
-        detail: l.noteSnippet ?? "",
+        detail: comment ?? "",
       });
     }
   }
@@ -74,8 +75,9 @@ function buildTemplateSummary(input: AiSummaryInput): ShapeAiSummary {
     const deltaStr = delta == null ? "" : delta >= 0 ? ` (+${delta} vs prior)` : ` (${delta} vs prior)`;
     sourceInsights.push(`${source}: ${count} lead${count === 1 ? "" : "s"}${deltaStr}`);
     const samples = topBySource(leads, source, 1);
-    if (samples[0]?.noteSnippet) {
-      sourceInsights.push(`  ↳ ${samples[0].borrowerName}: "${samples[0].noteSnippet}"`);
+    const sampleComment = samples[0]?.aiNoteComment ?? samples[0]?.noteSnippet;
+    if (sampleComment) {
+      sourceInsights.push(`  ↳ ${samples[0].borrowerName}: "${sampleComment}"`);
     }
   }
 
@@ -126,7 +128,7 @@ async function buildLlmSummary(input: AiSummaryInput, template: ShapeAiSummary):
         source: l.source,
         lo: l.loName,
         status: l.status,
-        note: l.noteSnippet,
+        note: l.aiNoteComment ?? l.noteSnippet,
         flags: l.noteQualityFlags,
       })),
     templateSummary: {
