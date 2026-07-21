@@ -9,6 +9,8 @@ type SendResult = {
   cadence?: Cadence;
   status?: "sent" | "failed" | "skipped";
   leadCount?: number;
+  sourceRecordsQueried?: number;
+  sourcePagesFetched?: number;
   runId?: string;
   error?: string;
   skippedReason?: string;
@@ -96,6 +98,13 @@ export function ShapeReportEmailTester() {
               <strong>{result.cadence} report sent to Nikk.</strong>{" "}
               It used {result.leadCount ?? 0} live Shape lead
               {(result.leadCount ?? 0) === 1 ? "" : "s"}.
+              {result.sourceRecordsQueried != null ? (
+                <span className="mt-1 block text-xs text-mutedForeground">
+                  Checked {result.sourceRecordsQueried} live Shape records across{" "}
+                  {result.sourcePagesFetched ?? 0} API page
+                  {(result.sourcePagesFetched ?? 0) === 1 ? "" : "s"}.
+                </span>
+              ) : null}
               {result.runId ? (
                 <span className="mt-1 block text-xs text-mutedForeground">
                   Run ID: <span className="font-mono">{result.runId}</span>

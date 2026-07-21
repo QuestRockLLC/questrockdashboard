@@ -4,16 +4,28 @@ import { getShapeApiConfig } from "@/lib/shape-api/config";
 export async function shapeBulkExport(
   params: ShapeBulkExportRequest
 ): Promise<ShapeBulkExportResponse> {
-  const { baseUrl, apiKey, crmId } = getShapeApiConfig();
+  const { baseUrl, apiKey } = getShapeApiConfig();
 
   const body: Record<string, unknown> = {
     fields: params.fields,
-    pageNumber: params.pageNumber,
   };
-  if (params.createdDateRange) body.createdDateRange = params.createdDateRange;
-  if (params.updatedDateRange) body.updatedDateRange = params.updatedDateRange;
+  // Shape expects pageNumber inside the selected date-range object, not at
+  // the payload root. This endpoint is account-scoped by the API key and does
+  // not take CRM ID in the URL.
+  if (params.createdDateRange) {
+    body.createdDateRange = {
+      ...params.createdDateRange,
+      pageNumber: String(params.pageNumber),
+    };
+  }
+  if (params.updatedDateRange) {
+    body.updatedDateRange = {
+      ...params.updatedDateRange,
+      pageNumber: String(params.pageNumber),
+    };
+  }
 
-  const res = await fetch(`${baseUrl}/leads/bulk/export/${crmId}`, {
+  const res = await fetch(`${baseUrl}/leads/bulk/export`, {
     method: "POST",
     headers: {
       Authorization: apiKey,

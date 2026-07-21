@@ -136,6 +136,9 @@ export function renderShapeReportEmail(
               </table>
               <h1 style="margin:26px 0 6px;color:#ffffff;font-size:27px;line-height:34px">${esc(CADENCE_TITLES[payload.cadence])}</h1>
               <p style="margin:0;color:#dbeafe;font-size:14px">${esc(payload.periodLabel)}</p>
+              <p style="margin:10px 0 0;color:#bbf7d0;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px">
+                Live Shape API · ${payload.sourceRecordsQueried} records checked · ${payload.sourcePagesFetched} page${payload.sourcePagesFetched === 1 ? "" : "s"}
+              </p>
             </td>
           </tr>
 
@@ -294,6 +297,7 @@ export function renderShapeReportEmail(
   const textLines: string[] = [
     subject,
     `${payload.leadCount} leads · ${payload.periodLabel}`,
+    `Source: Live Shape API · ${payload.sourceRecordsQueried} records checked · ${payload.sourcePagesFetched} pages`,
     "",
     "SOURCE BREAKDOWN",
     ...CANONICAL_SHAPE_SOURCES.map((s) => `  ${s}: ${payload.sourceBreakdown[s] ?? 0}`),

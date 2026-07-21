@@ -73,6 +73,10 @@ export type ShapeAiSummary = {
 export type ShapeReportPayload = {
   reportType: ShapeReportType;
   cadence: ShapeReportCadence;
+  sourceSystem: "shape_api";
+  sourceFetchedAt: string;
+  sourceRecordsQueried: number;
+  sourcePagesFetched: number;
   periodStart: string;
   periodEnd: string;
   periodLabel: string;
@@ -98,6 +102,8 @@ export type ShapeReportDeliveryResult = {
   status: "sent" | "failed" | "skipped";
   skippedReason?: string;
   leadCount: number;
+  sourceRecordsQueried?: number;
+  sourcePagesFetched?: number;
   zapierStatus?: number;
   error?: string;
 };

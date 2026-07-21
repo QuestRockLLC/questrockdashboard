@@ -5,6 +5,10 @@ export type ZapierShapeReportPayload = {
   event: "shape_report.generated";
   reportType: ShapeReportPayload["reportType"];
   cadence: ShapeReportPayload["cadence"];
+  sourceSystem: ShapeReportPayload["sourceSystem"];
+  sourceFetchedAt: string;
+  sourceRecordsQueried: number;
+  sourcePagesFetched: number;
   periodStart: string;
   periodEnd: string;
   periodLabel: string;
@@ -30,6 +34,10 @@ export function toZapierShapeReportPayload(payload: ShapeReportPayload): ZapierS
     event: "shape_report.generated",
     reportType: payload.reportType,
     cadence: payload.cadence,
+    sourceSystem: payload.sourceSystem,
+    sourceFetchedAt: payload.sourceFetchedAt,
+    sourceRecordsQueried: payload.sourceRecordsQueried,
+    sourcePagesFetched: payload.sourcePagesFetched,
     periodStart: payload.periodStart,
     periodEnd: payload.periodEnd,
     periodLabel: payload.periodLabel,

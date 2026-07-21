@@ -63,6 +63,10 @@ export async function deliverShapeReport(
 
   const runId = runIdOverride ?? randomUUID();
   const payload = await buildShapeReportPayload(admin, cadence, { runId, now });
+  const sourceMeta = {
+    sourceRecordsQueried: payload.sourceRecordsQueried,
+    sourcePagesFetched: payload.sourcePagesFetched,
+  };
   payload.recipientGroup = recipientGroup;
   payload.recipients = getShapeReportRecipients(recipientGroup).map((r) => ({
     email: r.email,
@@ -85,6 +89,7 @@ export async function deliverShapeReport(
       status: "skipped",
       skippedReason: "Report already sent for this period",
       leadCount: payload.leadCount,
+      ...sourceMeta,
     };
   }
 
@@ -95,6 +100,7 @@ export async function deliverShapeReport(
       status: "skipped",
       skippedReason: "dryRun=true",
       leadCount: payload.leadCount,
+      ...sourceMeta,
     };
   }
 
@@ -129,6 +135,7 @@ export async function deliverShapeReport(
       status: "failed",
       error: "ZAPIER_SHAPE_REPORT_WEBHOOK_URL not configured",
       leadCount: payload.leadCount,
+      ...sourceMeta,
     };
   }
 
@@ -151,6 +158,7 @@ export async function deliverShapeReport(
       cadence,
       status: "sent",
       leadCount: payload.leadCount,
+      ...sourceMeta,
       zapierStatus: result.status,
     };
   }
@@ -173,6 +181,7 @@ export async function deliverShapeReport(
     status: "failed",
     error: errorMsg,
     leadCount: payload.leadCount,
+    ...sourceMeta,
   };
 }
 

@@ -3,8 +3,8 @@ import { randomUUID, createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { buildShapeAiSummary } from "./ai-summary";
-import { fetchShapeActivityCounts, fetchShapeReportLeads } from "./fetch-leads";
-import { getPreviousShapeReportPeriod, getShapeReportPeriod } from "./period-utils";
+import { fetchShapeReportLeads } from "./fetch-leads";
+import { getShapeReportPeriod } from "./period-utils";
 import { renderShapeReportEmail } from "./render-email";
 import type {
   ShapeLoBreakdownRow,
@@ -72,24 +72,17 @@ export async function buildShapeReportPayload(
   const period = getShapeReportPeriod(cadence, now);
   const runId = options?.runId ?? randomUUID();
 
-  const { leads, sourceBreakdown } = await fetchShapeReportLeads(admin, period, cadence);
-  const activity = await fetchShapeActivityCounts(admin, period);
-
-  let previousSourceBreakdown = null;
-  const prevPeriod = getPreviousShapeReportPeriod(cadence, period);
-  if (prevPeriod) {
-    const prev = await fetchShapeReportLeads(admin, prevPeriod, cadence);
-    previousSourceBreakdown = prev.sourceBreakdown;
-  }
+  const liveShape = await fetchShapeReportLeads(admin, period, cadence);
+  const { leads, sourceBreakdown } = liveShape;
 
   const aiSummary = await buildShapeAiSummary({
     cadence,
     periodLabel: period.label,
     leads,
     sourceBreakdown,
-    statusChanges: activity.statusChanges,
-    notesAdded: activity.notesAdded,
-    previousSourceBreakdown,
+    statusChanges: leads.filter((lead) => lead.updatedAt).length,
+    notesAdded: leads.filter((lead) => lead.noteSnippet).length,
+    previousSourceBreakdown: null,
   });
 
   const loBreakdown = buildLoBreakdown(leads);
@@ -99,6 +92,10 @@ export async function buildShapeReportPayload(
   const base: Omit<ShapeReportPayload, "emailSubject" | "emailHtml" | "emailText"> = {
     reportType: cadence,
     cadence,
+    sourceSystem: "shape_api",
+    sourceFetchedAt: now.toISOString(),
+    sourceRecordsQueried: liveShape.totalQueried,
+    sourcePagesFetched: liveShape.pagesFetched,
     periodStart: period.periodStart,
     periodEnd: period.periodEnd,
     periodLabel: period.label,
