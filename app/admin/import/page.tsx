@@ -10,6 +10,7 @@ import {
 } from "./actions";
 import { createTeam, createUserAndAssign, seedInitialOrg } from "./org-actions";
 import { LendingPadSyncButton } from "./LendingPadSyncButton";
+import { ShapeReportEmailTester } from "./ShapeReportEmailTester";
 import { ShapeApiPreview } from "./ShapeApiPreview";
 import { SyncNowButton } from "./SyncNowButton";
 import { requireCurrentUser } from "@/lib/current-user";
@@ -210,6 +211,18 @@ export default async function AdminImportPage({ searchParams }: Props) {
         <p className="mt-4 text-xs text-mutedForeground">
           Requires <span className="font-mono">SUPABASE_SERVICE_ROLE_KEY</span> on the server.
         </p>
+      </section>
+
+      <section className="ops-section p-5">
+        <h2 className="ops-section-title mb-1">
+          <span className="icon" aria-hidden>✉</span>
+          Shape report email testing
+        </h2>
+        <p className="lo-muted text-sm">
+          Build polished Daily, Weekly, or Monthly reports from current Shape data and send a
+          real test email to Nikk through Zapier.
+        </p>
+        <ShapeReportEmailTester />
       </section>
 
       <section className="ops-section p-5">
