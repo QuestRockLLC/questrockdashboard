@@ -15,12 +15,17 @@ import { extractLeadNote } from "./note-extraction";
 import type { ShapeReportCadence, ShapeReportLead, ShapeReportPeriod } from "./types";
 
 const SHAPE_PAGE_SIZE = 50;
-const DEFAULT_MAX_PAGES = 100;
-// Shape's account-level throttle returns 429 under bursty parallel requests —
-// keep concurrency modest even with the client's own retry/backoff.
-const DEFAULT_PAGE_CONCURRENCY = 3;
+// Monthly cadence windows can span 250-300+ pages; the client-level 429
+// retry/backoff lets us afford a higher page cap than earlier defaults.
+const DEFAULT_MAX_PAGES = 400;
+// Shape's account-level throttle can return 429 under bursty parallel
+// requests — the client now retries those with backoff, so this can be a
+// bit higher than the original ultra-conservative value, but still modest.
+const DEFAULT_PAGE_CONCURRENCY = 5;
 const DEFAULT_BATCH_PAUSE_MS = 200;
-const DEFAULT_FETCH_BUDGET_MS = 50_000;
+// Report routes run with maxDuration=300 (see route files); leave ~60s of
+// that for AI summarization, email rendering, DB writes, and Zapier delivery.
+const DEFAULT_FETCH_BUDGET_MS = 240_000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -120,7 +125,7 @@ async function fetchLiveShapeRows(
     Number(process.env.SHAPE_REPORT_MAX_PAGES ?? DEFAULT_MAX_PAGES),
   );
   const pageConcurrency = Math.min(
-    6,
+    8,
     Math.max(
       1,
       Number(process.env.SHAPE_REPORT_PAGE_CONCURRENCY ?? DEFAULT_PAGE_CONCURRENCY),

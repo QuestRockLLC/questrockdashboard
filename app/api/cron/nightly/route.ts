@@ -40,7 +40,9 @@ import { deliverAllDueShapeReports } from "@/lib/reports/shape/deliver";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60; // Hobby-plan ceiling; incremental steps fit easily.
+// 120s gives the morning_lo Shape report step (retry/backoff on 429 can add
+// latency) extra headroom beyond the other lightweight incremental steps.
+export const maxDuration = 120;
 
 type StepResult = { ok: boolean; durationMs: number; data?: unknown; error?: string };
 

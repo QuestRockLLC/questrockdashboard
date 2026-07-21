@@ -17,8 +17,14 @@ import type { ShapeReportCadence } from "@/lib/reports/shape/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-/** Vercel Hobby = 60s; Pro can raise via vercel.json / dashboard. Keep work bounded. */
-export const maxDuration = 60;
+/**
+ * The lightweight incremental-sync path (the common case) stays well under
+ * 60s. But when a timed Shape email report (daily/weekly/monthly) is due
+ * this tick, it runs inline here and needs the same headroom as the manual
+ * report routes — Vercel clamps this automatically if the plan doesn't
+ * support it, so it's safe to request.
+ */
+export const maxDuration = 300;
 
 type StepResult = { ok: boolean; durationMs: number; data?: unknown; error?: string };
 
