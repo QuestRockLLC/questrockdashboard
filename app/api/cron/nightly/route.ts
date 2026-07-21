@@ -36,6 +36,7 @@ import { deliverLeadTierRetentionDigest } from "@/lib/notifications/lead-tier-re
 import { buildDailyReport, renderDailyReportMarkdown } from "@/lib/reports/daily";
 import { buildWeeklyReport, renderWeeklyReportMarkdown } from "@/lib/reports/weekly";
 import { buildMonthlyReport, renderMonthlyReportMarkdown } from "@/lib/reports/monthly";
+import { deliverAllDueShapeReports } from "@/lib/reports/shape/deliver";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -183,6 +184,19 @@ async function handle(request: Request) {
       return { delivered: rows.length, totalLeads: data.totalLeads, funded: data.fundedCount };
     });
   }
+
+  // ── Shape email reports (Zapier → Nikk pilot) ─────────────────────────────
+  results.shapeEmailReports = await step("shapeEmailReports", async () => {
+    const admin = createSupabaseAdminClient();
+    const deliveries = await deliverAllDueShapeReports(admin);
+    return {
+      attempted: deliveries.length,
+      sent: deliveries.filter((d) => d.status === "sent").length,
+      skipped: deliveries.filter((d) => d.status === "skipped").length,
+      failed: deliveries.filter((d) => d.status === "failed").length,
+      deliveries,
+    };
+  });
 
   const anyFailures = Object.values(results).some((r) => !r.ok);
   return NextResponse.json(
