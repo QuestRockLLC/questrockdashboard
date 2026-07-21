@@ -33,16 +33,21 @@ const EXACT_SOURCE_ALIASES: Record<string, CanonicalShapeSource> = {
   "inbound zoom": "Inbound Zoom",
   "zoom inbound": "Inbound Zoom",
   "inbound zoom call": "Inbound Zoom",
+  // Live Shape data records this source as the bare word "Zoom" — this is the
+  // single largest tracked source and must not fall through to "Other".
+  zoom: "Inbound Zoom",
+  "zoom call": "Inbound Zoom",
   "inbound shape": "Inbound Shape",
   "shape inbound": "Inbound Shape",
   "inbound shape lead": "Inbound Shape",
+  "inbound shape call": "Inbound Shape",
 };
 
 /** Fuzzy patterns when exact match fails. Order matters — first match wins. */
 const FUZZY_SOURCE_PATTERNS: Array<{ canonical: CanonicalShapeSource; pattern: RegExp }> = [
   { canonical: "DSCR HOT", pattern: /dscr.*hot|hot.*dscr/i },
   { canonical: "WebLead", pattern: /web\s*lead|weblead/i },
-  { canonical: "Inbound Zoom", pattern: /inbound.*zoom|zoom.*inbound/i },
+  { canonical: "Inbound Zoom", pattern: /inbound.*zoom|zoom.*inbound|\bzoom\b/i },
   { canonical: "Inbound Shape", pattern: /inbound.*shape|shape.*inbound/i },
 ];
 

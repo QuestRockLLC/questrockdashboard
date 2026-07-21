@@ -17,8 +17,16 @@ import type { ShapeReportCadence, ShapeReportLead, ShapeReportPeriod } from "./t
 const SHAPE_PAGE_SIZE = 50;
 const DEFAULT_MAX_PAGES = 100;
 const DEFAULT_PAGE_CONCURRENCY = 8;
+const EXCLUDED_REPORT_RECORD_TYPES = new Set([
+  "referral partner",
+  "referral partners",
+  "contact",
+  "contacts",
+]);
+
 const SHAPE_REPORT_EXPORT_FIELDS = [
   "leadid",
+  "recordtype",
   "createdDate",
   "lastActivityDate",
   "firstname",
@@ -84,12 +92,21 @@ function pageFingerprint(records: Record<string, unknown>[]): string {
   return `${records.length}|${ids.slice(0, 5).join(",")}|${ids.slice(-5).join(",")}`;
 }
 
+function nextIsoDate(dateStr: string): string {
+  const d = new Date(`${dateStr}T12:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
 async function fetchLiveShapeRows(
   period: ShapeReportPeriod,
   cadence: ShapeReportCadence,
 ): Promise<{ rows: ShapeKpiCsvRow[]; pagesFetched: number }> {
   const from = effectiveWindowStart(period, cadence).slice(0, 10);
-  const to = period.periodEnd.slice(0, 10);
+  // Shape's date-range filter appears to exclude same-day results when
+  // from === to (e.g. daily reports with from=to=today returned 0 records).
+  // Push "to" one day past the period end so today is always fully included.
+  const to = nextIsoDate(period.periodEnd.slice(0, 10));
   const maxPages = Math.max(
     1,
     Number(process.env.SHAPE_REPORT_MAX_PAGES ?? DEFAULT_MAX_PAGES),
@@ -181,6 +198,11 @@ function isQuestMail(row: ShapeKpiCsvRow): boolean {
     .some((value) => /quest\s*mail/i.test(String(value)));
 }
 
+function isExcludedRecordType(row: ShapeKpiCsvRow): boolean {
+  const rt = String(row["Record Type"] ?? "").trim().toLowerCase();
+  return rt ? EXCLUDED_REPORT_RECORD_TYPES.has(rt) : false;
+}
+
 export async function fetchShapeReportLeads(
   _admin: SupabaseClient,
   period: ShapeReportPeriod,
@@ -191,7 +213,7 @@ export async function fetchShapeReportLeads(
   const leads: ShapeReportLead[] = [];
 
   for (const row of rows) {
-    if (isQuestMail(row)) continue;
+    if (isQuestMail(row) || isExcludedRecordType(row)) continue;
 
     const source = resolveCanonicalShapeSource({
       source: row.Source,

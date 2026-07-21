@@ -22,6 +22,14 @@ describe("normalizeShapeSource", () => {
     expect(normalizeShapeSource("shape inbound lead")).toBe("Inbound Shape");
   });
 
+  it("maps the real live-Shape source values seen in production", () => {
+    // Shape's actual raw values (confirmed from synced lead data) — the bare
+    // "Zoom" source is the single largest tracked bucket and must map.
+    expect(normalizeShapeSource("Zoom")).toBe("Inbound Zoom");
+    expect(normalizeShapeSource("Inbound Shape Call")).toBe("Inbound Shape");
+    expect(normalizeShapeSource("UV WebLead")).toBe("WebLead");
+  });
+
   it("returns null for unknown sources", () => {
     expect(normalizeShapeSource("Referral")).toBeNull();
     expect(normalizeShapeSource("")).toBeNull();
