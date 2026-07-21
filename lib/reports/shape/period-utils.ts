@@ -1,13 +1,23 @@
 import { etMidnightIso, etTodayDate } from "@/lib/date-utils";
 import type { ShapeReportCadence, ShapeReportPeriod } from "./types";
 
-function etDateParts(now: Date): { year: number; month: number; day: number; weekday: number } {
+function etDateParts(now: Date): {
+  year: number;
+  month: number;
+  day: number;
+  weekday: number;
+  hour: number;
+  minute: number;
+} {
   const fmt = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/New_York",
     year: "numeric",
     month: "numeric",
     day: "numeric",
     weekday: "short",
+    hour: "numeric",
+    minute: "numeric",
+    hour12: false,
   });
   const parts = fmt.formatToParts(now);
   const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
@@ -20,11 +30,15 @@ function etDateParts(now: Date): { year: number; month: number; day: number; wee
     Fri: 5,
     Sat: 6,
   };
+  // hour12:false can render midnight as "24" in some Intl implementations.
+  const rawHour = Number(get("hour"));
   return {
     year: Number(get("year")),
     month: Number(get("month")),
     day: Number(get("day")),
     weekday: weekdayMap[get("weekday")] ?? now.getDay(),
+    hour: rawHour === 24 ? 0 : rawHour,
+    minute: Number(get("minute")),
   };
 }
 
@@ -103,13 +117,28 @@ export function getShapeReportPeriod(
     };
   }
 
-  // monthly
-  const { year, month } = etDateParts(now);
-  const monthStartEt = `${year}-${String(month).padStart(2, "0")}-01`;
-  const periodStart = etMidnightForDate(monthStartEt);
+  // monthly — scheduled send happens on the 1st (7am ET), which should
+  // report the just-completed prior month in full, not a near-empty
+  // "month-to-date" for the day that just started. Ad-hoc/force runs on any
+  // other day still get the current month-to-date snapshot.
+  const { year, month, day } = etDateParts(now);
+  const currentMonthStartEt = `${year}-${String(month).padStart(2, "0")}-01`;
+
+  if (day === 1) {
+    const priorMonth = month === 1 ? 12 : month - 1;
+    const priorYear = month === 1 ? year - 1 : year;
+    const priorMonthStartEt = `${priorYear}-${String(priorMonth).padStart(2, "0")}-01`;
+    return {
+      cadence,
+      periodStart: etMidnightForDate(priorMonthStartEt),
+      periodEnd: etMidnightForDate(currentMonthStartEt),
+      label: formatLabel(new Date(`${priorMonthStartEt}T12:00:00.000Z`), "month"),
+    };
+  }
+
   return {
     cadence,
-    periodStart,
+    periodStart: etMidnightForDate(currentMonthStartEt),
     periodEnd: now.toISOString(),
     label: formatLabel(now, "month"),
   };
@@ -137,11 +166,27 @@ export function getPreviousShapeReportPeriod(
   };
 }
 
+/** Target Eastern-Time send hour (24h) for each timed cadence. */
+export const SHAPE_REPORT_SEND_HOUR_ET: Record<"daily" | "weekly" | "monthly", number> = {
+  daily: 17, // 5:00 PM ET
+  weekly: 7, // 7:00 AM ET, Sundays
+  monthly: 7, // 7:00 AM ET, 1st of month
+};
+
+/**
+ * True once per day when `cadence` is due, gated to its target ET hour so
+ * cron invocations outside that hour (e.g. the once-daily nightly cron)
+ * don't fire it early/late. `minute < 15` limits it to the first tick of
+ * the hour when called from a 15-minute cron — harmless if called more
+ * often since delivery is idempotent per period.
+ */
 export function shouldRunCadenceToday(cadence: ShapeReportCadence, now: Date = new Date()): boolean {
-  const { weekday, day } = etDateParts(now);
+  const { weekday, day, hour, minute } = etDateParts(now);
   if (cadence === "morning_lo") return weekday >= 1 && weekday <= 5;
-  if (cadence === "daily") return true;
-  if (cadence === "weekly") return weekday === 1;
-  if (cadence === "monthly") return day === 1;
+  if (cadence === "daily") return hour === SHAPE_REPORT_SEND_HOUR_ET.daily && minute < 15;
+  if (cadence === "weekly")
+    return weekday === 0 && hour === SHAPE_REPORT_SEND_HOUR_ET.weekly && minute < 15;
+  if (cadence === "monthly")
+    return day === 1 && hour === SHAPE_REPORT_SEND_HOUR_ET.monthly && minute < 15;
   return false;
 }

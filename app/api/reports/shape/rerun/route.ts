@@ -15,6 +15,7 @@ import type { ShapeReportCadence } from "@/lib/reports/shape/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 async function authorize(request: Request): Promise<NextResponse | null> {
   if (isCronRequestAuthorized(request)) return null;

@@ -10,6 +10,10 @@ import { NextResponse } from "next/server";
 import { isCronRequestAuthorized } from "@/lib/cron-auth";
 import { hasShapeApiConfig } from "@/lib/shape-api/config";
 import { runShapeApiSync } from "@/lib/shape-api/sync";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { deliverShapeReport } from "@/lib/reports/shape/deliver";
+import { shouldRunCadenceToday } from "@/lib/reports/shape/period-utils";
+import type { ShapeReportCadence } from "@/lib/reports/shape/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,16 +34,44 @@ async function step<T>(name: string, fn: () => Promise<T>): Promise<StepResult> 
   }
 }
 
+const TIMED_REPORT_CADENCES: ShapeReportCadence[] = ["daily", "weekly", "monthly"];
+
 async function handle(request: Request) {
   if (!isCronRequestAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const now = new Date();
+  const results: Record<string, StepResult> = {};
+
+  // Daily (5pm ET) / weekly (Sun 7am ET) / monthly (1st, 7am ET) email reports
+  // need this tick's full time budget to page through Shape safely without
+  // tripping its rate limiter — skip the incremental sync below when due.
+  const dueCadences = TIMED_REPORT_CADENCES.filter((c) => shouldRunCadenceToday(c, now));
+
+  if (dueCadences.length > 0) {
+    const admin = createSupabaseAdminClient();
+    for (const cadence of dueCadences) {
+      results[`shapeReport_${cadence}`] = await step(`shapeReport_${cadence}`, async () => {
+        return await deliverShapeReport(admin, { cadence, now });
+      });
+    }
+
+    const anyFailures = Object.values(results).some((r) => !r.ok);
+    return NextResponse.json(
+      {
+        ok: !anyFailures,
+        ranAt: now.toISOString(),
+        note: "Shape email report(s) due this tick — incremental Shape sync skipped to preserve time budget.",
+        results,
+      },
+      { status: anyFailures ? 207 : 200 },
+    );
+  }
+
   // ~6s/page × 5 pages ≈ 30s fetch + ~10s upsert → fits in 60s Hobby limit.
   const maxPages = Number(process.env.CRON_SHAPE_MAX_PAGES ?? 5);
   const fetchBudgetMs = Number(process.env.CRON_SHAPE_FETCH_BUDGET_MS ?? 42_000);
-
-  const results: Record<string, StepResult> = {};
 
   results.shape = await step("shape", async () => {
     if (!hasShapeApiConfig()) return { skipped: true, reason: "Shape API not configured" };
@@ -57,7 +89,7 @@ async function handle(request: Request) {
   return NextResponse.json(
     {
       ok: !anyFailures,
-      ranAt: new Date().toISOString(),
+      ranAt: now.toISOString(),
       note: "Lightweight Shape cron (loans upsert only). Activity/LP/backfill run on nightly or manual sync.",
       maxPages,
       fetchBudgetMs,

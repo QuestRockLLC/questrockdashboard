@@ -16,7 +16,15 @@ import type { ShapeReportCadence, ShapeReportLead, ShapeReportPeriod } from "./t
 
 const SHAPE_PAGE_SIZE = 50;
 const DEFAULT_MAX_PAGES = 100;
-const DEFAULT_PAGE_CONCURRENCY = 8;
+// Shape's account-level throttle returns 429 under bursty parallel requests —
+// keep concurrency modest even with the client's own retry/backoff.
+const DEFAULT_PAGE_CONCURRENCY = 3;
+const DEFAULT_BATCH_PAUSE_MS = 200;
+const DEFAULT_FETCH_BUDGET_MS = 50_000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 const EXCLUDED_REPORT_RECORD_TYPES = new Set([
   "referral partner",
   "referral partners",
@@ -112,22 +120,38 @@ async function fetchLiveShapeRows(
     Number(process.env.SHAPE_REPORT_MAX_PAGES ?? DEFAULT_MAX_PAGES),
   );
   const pageConcurrency = Math.min(
-    12,
+    6,
     Math.max(
       1,
       Number(process.env.SHAPE_REPORT_PAGE_CONCURRENCY ?? DEFAULT_PAGE_CONCURRENCY),
     ),
   );
+  const batchPauseMs = Math.max(
+    0,
+    Number(process.env.SHAPE_REPORT_BATCH_PAUSE_MS ?? DEFAULT_BATCH_PAUSE_MS),
+  );
+  const fetchBudgetMs = Math.max(
+    5_000,
+    Number(process.env.SHAPE_REPORT_FETCH_BUDGET_MS ?? DEFAULT_FETCH_BUDGET_MS),
+  );
+  const fetchStartedAt = Date.now();
   const rowsByLeadId = new Map<string, ShapeKpiCsvRow>();
   const seenFingerprints = new Set<string>();
   let pagesFetched = 0;
   let reachedEnd = false;
+  let budgetExceeded = false;
 
   for (
     let batchStart = 1;
     batchStart <= maxPages && !reachedEnd;
     batchStart += pageConcurrency
   ) {
+    if (Date.now() - fetchStartedAt >= fetchBudgetMs) {
+      budgetExceeded = true;
+      break;
+    }
+    if (batchStart > 1 && batchPauseMs > 0) await sleep(batchPauseMs);
+
     const pageNumbers = Array.from(
       { length: Math.min(pageConcurrency, maxPages - batchStart + 1) },
       (_, index) => batchStart + index,
@@ -181,6 +205,13 @@ async function fetchLiveShapeRows(
 
       if (records.length < SHAPE_PAGE_SIZE) reachedEnd = true;
     }
+  }
+
+  if (!reachedEnd && budgetExceeded) {
+    throw new Error(
+      `Shape report fetch exceeded its time budget (${fetchBudgetMs}ms) after ${pagesFetched} pages; ` +
+        `refusing to send a partial report. Retry, or raise SHAPE_REPORT_FETCH_BUDGET_MS / route maxDuration.`,
+    );
   }
 
   if (!reachedEnd && pagesFetched >= maxPages) {

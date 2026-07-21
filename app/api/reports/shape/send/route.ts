@@ -16,6 +16,9 @@ import type { ShapeReportCadence } from "@/lib/reports/shape/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// Monthly cadence can page through hundreds of Shape records; give it as
+// much headroom as the plan allows (clamped automatically if unsupported).
+export const maxDuration = 300;
 
 const VALID_CADENCES: ShapeReportCadence[] = ["morning_lo", "daily", "weekly", "monthly"];
 

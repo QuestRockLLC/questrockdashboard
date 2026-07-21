@@ -186,6 +186,12 @@ async function handle(request: Request) {
   }
 
   // ── Shape email reports (Zapier → Nikk pilot) ─────────────────────────────
+  // Only morning_lo is actually due from this ~8-9am ET trigger; daily
+  // (5pm ET), weekly (Sun 7am ET) and monthly (1st, 7am ET) are hour-gated
+  // and delivered from the 15-min cron instead, which has full time budget
+  // to page through Shape without tripping its rate limiter. This call is
+  // a cheap no-op for those cadences (gate is checked before any Shape API
+  // usage) — kept here only so morning_lo still fires.
   results.shapeEmailReports = await step("shapeEmailReports", async () => {
     const admin = createSupabaseAdminClient();
     const deliveries = await deliverAllDueShapeReports(admin);
