@@ -1,5 +1,10 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { mapLendingPadStatusToStage } from "./map-lp-status-to-stage";
+import {
+  lpCriticalDatesFromRecord,
+  lpCriticalDatesToLoanColumns,
+  lpDateOnly,
+} from "./lp-critical-dates";
 
 type IdName = { id?: number | string; name?: string };
 
@@ -74,6 +79,7 @@ export async function processLendingPadExportBatch(
     const cobContacts = coborrower ? ((coborrower.contacts as Record<string, unknown>) ?? {}) : {};
     const subject = (row.subjectPropertyAddress as Record<string, unknown>) ?? {};
     const dates = (row.dates as Record<string, unknown>) ?? {};
+    const lpCritical = lpCriticalDatesFromRecord(dates);
 
     // ── Stage & status ─────────────────────────────────────────────────────
     const loanStatusName = idNameName(row.loanStatus as IdName);
@@ -168,9 +174,11 @@ export async function processLendingPadExportBatch(
         ? String(dates.lockExpiration).slice(0, 10)
         : null,
       estimated_closing_at: parseIso(dates.estimatedClosing as string),
-      closing_date: dates.scheduleClosing
-        ? String(dates.scheduleClosing).slice(0, 10)
-        : null,
+      closing_date:
+        lpDateOnly(dates.scheduleClosing) ??
+        lpDateOnly(dates.estimatedClosing) ??
+        lpDateOnly(dates.closingEstimate),
+      ...lpCriticalDatesToLoanColumns(lpCritical),
       appraisal_contingency_date: dates.appraisalContingency
         ? String(dates.appraisalContingency).slice(0, 10)
         : null,

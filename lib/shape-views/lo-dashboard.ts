@@ -34,6 +34,10 @@ export type LoDashboardLoanRow = ShapeLoanRow & {
   game_plan_notes: string | null;
   initial_contact_attempted: boolean | null;
   credit_report_requested_at: string | null;
+  application_taken_at: string | null;
+  le_issued_at: string | null;
+  intent_to_proceed_at: string | null;
+  lp_processing_at: string | null;
   verification_started_at: string | null;
   verification_completed_at: string | null;
   submitted_to_processing_at: string | null;
@@ -185,6 +189,9 @@ export function leadPhaseLabelFor(row: LoDashboardLoanRow): string {
 }
 
 export function inferLeadPhase(row: LoDashboardLoanRow): TurntimePhaseKey {
+  if (row.lp_processing_at) return "validation";
+  if (row.intent_to_proceed_at || row.le_issued_at) return "packageOut";
+
   const status = normalizeStatus(row.status_raw);
   if (!status || status === "New Lead" || status === "Not Contacted" || status === "Attempting Contact") {
     return "verification";
@@ -196,12 +203,16 @@ export function inferLeadPhase(row: LoDashboardLoanRow): TurntimePhaseKey {
     }
     return "packageOut";
   }
+  if (status === "Package Back") return "packageOut";
   if (status.includes("Verification")) return "verification";
+  if (status === "Package Out" || status.includes("Package Out")) return "packageOut";
   if (status.includes("Package")) return "packageOut";
   if (status.includes("Validation") || status.includes("Processing")) return "validation";
   if (status.includes("UW") || status.includes("Underwriting")) return "underwriting";
   if (status.includes("Clear to Close") || status === "CTC") return "ctc";
   if (CLOSED_FAMILY.has(status)) return "ctc";
+  const lpStatus = normalizeStatus(row.lendingpad_status_raw);
+  if (lpStatus === "Application Taken") return "verification";
   return "verification";
 }
 
@@ -360,9 +371,24 @@ function verificationKey(_row: LoDashboardLoanRow): "verification" {
   return "verification";
 }
 
+/** LP Critical Dates drive disclosure labels before generic status fallbacks. */
+function lpDisclosureMilestoneLabel(row: LoDashboardLoanRow): string | null {
+  if (row.lp_processing_at) return "Validation";
+  if (row.intent_to_proceed_at) return "Package Back";
+  if (row.le_issued_at) return "Package Out";
+  return null;
+}
+
 function activeMilestoneKey(row: LoDashboardLoanRow): TurntimePhaseKey {
   if (row.ctc_at) return "ctc";
   if (row.submitted_to_uw_at && !row.uw_decision_at) return "underwriting";
+
+  // LP Critical Dates (QuestRock workflow) — takes precedence over LP status
+  // strings like "Application Taken" that lag behind the actual package stage.
+  if (row.lp_processing_at) return "validation";
+  if (row.intent_to_proceed_at) return "packageOut";
+  if (row.le_issued_at) return "packageOut";
+
   if (row.processing_completed_at || row.submitted_to_processing_at) {
     if (row.verification_completed_at && !row.submitted_to_uw_at) return "validation";
     return packageOutKey(row);
@@ -371,11 +397,19 @@ function activeMilestoneKey(row: LoDashboardLoanRow): TurntimePhaseKey {
 
   const stage = row.current_stage?.toLowerCase() ?? "";
   const status = normalizeStatus(row.status_raw) ?? normalizeStatus(row.lendingpad_status_raw) ?? "";
+  const lpStatus = normalizeStatus(row.lendingpad_status_raw) ?? "";
 
   if (status.includes("Clear to Close") || stage.includes("ctc")) return "ctc";
-  if (status.includes("UW") || status.includes("Underwriting") || stage.includes("underwriting")) return "underwriting";
-  if (status.includes("Validation") || status.includes("Processing") || stage.includes("validation")) return "validation";
-  if (status.includes("Package") || stage.includes("package")) return packageOutKey(row);
+  if (status.includes("UW") || status.includes("Underwriting") || stage.includes("underwriting")) {
+    return "underwriting";
+  }
+  if (status === "Package Back" || lpStatus === "Package Back") return "packageOut";
+  if (status.includes("Validation") || status.includes("Processing") || stage.includes("validation")) {
+    return "validation";
+  }
+  if (status === "Package Out" || status.includes("Package Out")) return packageOutKey(row);
+  if (status.includes("Package")) return packageOutKey(row);
+  if (status === "App Completed" || lpStatus === "Application Taken") return verificationKey(row);
   if (status.includes("Verification") || stage.includes("verification")) return verificationKey(row);
 
   return verificationKey(row);
@@ -384,11 +418,15 @@ function activeMilestoneKey(row: LoDashboardLoanRow): TurntimePhaseKey {
 function milestoneStartAt(row: LoDashboardLoanRow, key: TurntimePhaseKey): Date | null {
   switch (key) {
     case "verification":
-      return parseTs(row.verification_started_at) ?? parseTs(row.lead_created_at);
+      return (
+        parseTs(row.application_taken_at) ??
+        parseTs(row.verification_started_at) ??
+        parseTs(row.lead_created_at)
+      );
     case "packageOut":
-      return parseTs(row.verification_completed_at) ?? parseTs(row.submitted_to_processing_at);
+      return parseTs(row.le_issued_at) ?? parseTs(row.verification_completed_at) ?? parseTs(row.submitted_to_processing_at);
     case "validation":
-      return parseTs(row.submitted_to_processing_at) ?? parseTs(row.processing_completed_at);
+      return parseTs(row.lp_processing_at) ?? parseTs(row.submitted_to_processing_at) ?? parseTs(row.processing_completed_at);
     case "underwriting":
       return parseTs(row.submitted_to_uw_at);
     case "ctc":
@@ -401,9 +439,9 @@ function milestoneStartAt(row: LoDashboardLoanRow, key: TurntimePhaseKey): Date 
 function milestoneCompletedAt(row: LoDashboardLoanRow, key: TurntimePhaseKey): Date | null {
   switch (key) {
     case "verification":
-      return parseTs(row.verification_completed_at);
+      return parseTs(row.le_issued_at) ?? parseTs(row.verification_completed_at);
     case "packageOut":
-      return parseTs(row.submitted_to_processing_at);
+      return parseTs(row.intent_to_proceed_at) ?? parseTs(row.submitted_to_processing_at);
     case "validation":
       return parseTs(row.processing_completed_at) ?? parseTs(row.submitted_to_uw_at);
     case "underwriting":
@@ -495,8 +533,13 @@ export function computeLoanSLA(row: LoDashboardLoanRow, now = new Date()): { sla
 }
 
 function milestoneLabelFor(row: LoDashboardLoanRow): string {
-  const active = activeMilestoneKey(row);
-  return phaseLabel(active);
+  const lpLabel = lpDisclosureMilestoneLabel(row);
+  if (lpLabel) return lpLabel;
+
+  const status = normalizeStatus(row.status_raw) ?? normalizeStatus(row.lendingpad_status_raw) ?? "";
+  if (status === "Package Back") return "Package Back";
+
+  return phaseLabel(activeMilestoneKey(row));
 }
 
 function lockDaysLabel(row: LoDashboardLoanRow, now = new Date()): string {

@@ -17,6 +17,10 @@ export function borrowerLoMergeKey(row: LoDashboardLoanRow): string {
 const DATE_FIELDS = [
   "credit_report_requested_at",
   "conversion_date",
+  "application_taken_at",
+  "le_issued_at",
+  "intent_to_proceed_at",
+  "lp_processing_at",
   "submitted_to_processing_at",
   "processing_completed_at",
   "submitted_to_uw_at",

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildPipelineLoans,
   classifyLeads,
   computeLeadSLA,
   computeLoanSLA,
@@ -54,6 +55,10 @@ function baseRow(overrides: Partial<LoDashboardLoanRow> = {}): LoDashboardLoanRo
     game_plan_notes: null,
     initial_contact_attempted: false,
     credit_report_requested_at: null,
+    application_taken_at: null,
+    le_issued_at: null,
+    intent_to_proceed_at: null,
+    lp_processing_at: null,
     verification_started_at: null,
     verification_completed_at: null,
     submitted_to_processing_at: null,
@@ -179,5 +184,56 @@ describe("lo-dashboard", () => {
     expect(sla).toBe("ALERT");
     const progress = deriveMilestoneProgress(row, now);
     expect(progress.underwriting).toBe("stalled");
+  });
+
+  it("shows Package Out when LP status is Application Taken but LE Issued date is set", () => {
+    const row = baseRow({
+      record_type: "Loans",
+      borrower_first_name: "Paul",
+      borrower_last_name: "Sacchieri",
+      lendingpad_loan_uuid: "lp-paul",
+      lendingpad_status_raw: "Application Taken",
+      status_raw: "Application Taken",
+      application_taken_at: "2026-07-21T12:00:00.000Z",
+      le_issued_at: "2026-07-21T15:00:00.000Z",
+      intent_to_proceed_at: null,
+      lp_processing_at: null,
+      conversion_date: "2026-07-21T12:00:00.000Z",
+    });
+
+    const [pipelineRow] = buildPipelineLoans([row]);
+    expect(pipelineRow?.milestoneLabel).toBe("Package Out");
+  });
+
+  it("shows Package Back once Intent to Proceed is signed", () => {
+    const row = baseRow({
+      record_type: "Loans",
+      lendingpad_loan_uuid: "lp-2",
+      lendingpad_status_raw: "Application Taken",
+      status_raw: "Application Taken",
+      le_issued_at: "2026-07-21T15:00:00.000Z",
+      intent_to_proceed_at: "2026-07-25T12:00:00.000Z",
+      lp_processing_at: null,
+      conversion_date: "2026-07-21T12:00:00.000Z",
+    });
+
+    const [pipelineRow] = buildPipelineLoans([row]);
+    expect(pipelineRow?.milestoneLabel).toBe("Package Back");
+  });
+
+  it("shows Validation once LP Processing date is set", () => {
+    const row = baseRow({
+      record_type: "Loans",
+      lendingpad_loan_uuid: "lp-3",
+      lendingpad_status_raw: "Application Taken",
+      status_raw: "Application Taken",
+      le_issued_at: "2026-07-21T15:00:00.000Z",
+      intent_to_proceed_at: "2026-07-25T12:00:00.000Z",
+      lp_processing_at: "2026-07-26T09:00:00.000Z",
+      conversion_date: "2026-07-21T12:00:00.000Z",
+    });
+
+    const [pipelineRow] = buildPipelineLoans([row]);
+    expect(pipelineRow?.milestoneLabel).toBe("Validation");
   });
 });
