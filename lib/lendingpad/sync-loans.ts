@@ -102,7 +102,7 @@ function canonicalizeOfficerName(input: string | null | undefined): string {
 
 /**
  * Optional deterministic override:
- * LENDINGPAD_LIST_USER_MAP_JSON='[{"listUserId":"...","userId":"..."},{"listUserId":"...","fullName":"Jessica Sherard"}]'
+ * LENDINGPAD_LIST_USER_MAP_JSON='[{"listUserId":"...","userId":"..."},{"listUserId":"...","fullName":"Tyler Johnson"}]'
  */
 function parseListUserMapOverrides(users: AppUser[]): Map<string, string> {
   const out = new Map<string, string>();

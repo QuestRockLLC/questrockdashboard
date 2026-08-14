@@ -28,15 +28,13 @@ const password = process.argv[2] || "WelcomeToQuestRock1!";
 
 const USERS = [
   { email: "arashid@questrock.com", full_name: "Arsalan Rashid", role: "executive" },
-  { email: "bmedley@questrock.com", full_name: "Bill Medley", role: "executive" },
+  { email: "bmedley@questrock.com", full_name: "Bill Medley", role: "admin" },
   { email: "nikksmith@questrock.com", full_name: "Nikk Smith", role: "executive" },
   { email: "rayconway@questrock.com", full_name: "Ray Conway", role: "executive" },
   { email: "bastianjohnston@questrock.com", full_name: "Bastian Johnston", role: "manager" },
   { email: "jfriday@questrock.com", full_name: "Jason Friday", role: "manager" },
   { email: "tchisholm@questrock.com", full_name: "Tashawna Chisholm", role: "manager" },
   { email: "tjohnson@questrock.com", full_name: "Tyler Johnson", role: "loan_officer" },
-  { email: "scurry@questrock.com", full_name: "Stephen Curry", role: "loan_officer" },
-  { email: "jsherard@questrock.com", full_name: "Jessica Sherard", role: "loan_officer" },
   { email: "gbethea@questrock.com", full_name: "Gregory Bethea Jr", role: "loan_officer" },
   { email: "zdavis@questrock.com", full_name: "Zachary Davis", role: "loan_officer" },
 ];

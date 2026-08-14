@@ -46,10 +46,8 @@ export async function seedInitialOrg() {
     { full_name: "Ray Conway", role: "executive", email: "ray.conway@example.invalid" },
     { full_name: "Nikk Smith", role: "executive", email: "nikk.smith@example.invalid" },
     { full_name: "Bastian Johnston", role: "manager", email: "bastian.johnston@example.invalid" },
-    { full_name: "Stephen Curry", role: "loan_officer", email: "stephen.curry@example.invalid" },
     { full_name: "Tyler Johnson", role: "loan_officer", email: "tyler.johnson@example.invalid" },
-    { full_name: "Jessica Sherard", role: "loan_officer", email: "jessica.sherard@example.invalid" },
-    { full_name: "Kerry Rockey", role: "processor", email: "kerry.rockey@example.invalid" },
+    { full_name: "Kerry Rockey", role: "processor", email: "krockey@questrock.com" },
     { full_name: "Steve Metz", role: "closer", email: "steve.metz@example.invalid" },
   ] as const;
 
@@ -74,7 +72,7 @@ export async function seedInitialOrg() {
 
   const teamId = team.id as string;
 
-  const members = ["Bastian Johnston", "Stephen Curry", "Tyler Johnson"] as const;
+  const members = ["Bastian Johnston", "Tyler Johnson"] as const;
   for (const name of members) {
     const userId = ids[name];
     const { error: memErr } = await admin.from("team_members").upsert({ team_id: teamId, user_id: userId });

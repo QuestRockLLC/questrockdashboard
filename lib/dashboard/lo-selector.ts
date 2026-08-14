@@ -1,6 +1,6 @@
 import { loNamesMatch } from "@/lib/shape-api/lo-roster";
 
-/** LOs hidden from the LO dashboard officer filter (inactive / not on this workspace). */
+/** Former LOs — hidden from active officer filters; historical loan names may still reference them. */
 export const EXCLUDED_LO_DASHBOARD_NAMES = new Set([
   "Jessica Sherard",
   "Stephen Curry",

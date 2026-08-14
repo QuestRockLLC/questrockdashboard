@@ -120,7 +120,6 @@ export const PROMPT_LIBRARY: SuggestedPrompt[] = [
   { category: "LO performance", depth: "analysis", text: "Show me Bill Medley's pipeline — what should he prioritize today?" },
   { category: "LO performance", depth: "quick", text: "Which LO has the highest Application to Funded conversion rate?" },
   { category: "LO performance", depth: "analysis", text: "How many leads did each LO receive this quarter vs how many funded?" },
-  { category: "LO performance", depth: "report", text: "Where in the pipeline do deals die most often for Stephen Curry?" },
   { category: "LO performance", depth: "quick", text: "Rank all LOs by total funded loan volume year to date." },
   { category: "LO performance", depth: "analysis", text: "Show me LOs who have deals assigned but no activity in the last 14 days." },
 

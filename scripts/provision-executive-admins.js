@@ -3,6 +3,7 @@
  * Uses QR Dashboard Supabase (= Central Hub login = inbound mailer desk login).
  *
  * Run: node scripts/provision-executive-admins.js "YourPassword"
+ * Single user: node scripts/provision-executive-admins.js "YourPassword" bmedley@questrock.com
  */
 
 const path = require('path');
@@ -26,11 +27,13 @@ const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const password = process.argv[2] || process.env.SSO_BOOTSTRAP_PASSWORD;
 
 const EXECUTIVES = [
-  { email: 'arashid@questrock.com', full_name: 'Arsalan Rashid' },
-  { email: 'nikksmith@questrock.com', full_name: 'Nikk Smith' },
-  { email: 'bmedley@questrock.com', full_name: 'Bill Medley' },
-  { email: 'rayconway@questrock.com', full_name: 'Ray Conway' },
+  { email: 'arashid@questrock.com', full_name: 'Arsalan Rashid', role: 'executive' },
+  { email: 'nikksmith@questrock.com', full_name: 'Nikk Smith', role: 'executive' },
+  { email: 'bmedley@questrock.com', full_name: 'Bill Medley', role: 'admin' },
+  { email: 'rayconway@questrock.com', full_name: 'Ray Conway', role: 'executive' },
 ];
+
+const onlyEmail = process.argv[3]?.trim().toLowerCase() || null;
 
 if (!url || !serviceKey) {
   console.error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env.local');
@@ -72,7 +75,7 @@ async function ensureAuthUser({ email, full_name }) {
   return { email, action: 'created', id: created.user.id };
 }
 
-async function ensurePublicUser({ email, full_name }) {
+async function ensurePublicUser({ email, full_name, role = 'executive' }) {
   const { data: rows, error: fetchErr } = await admin
     .from('users')
     .select('id,email,full_name,role,is_active')
@@ -83,27 +86,36 @@ async function ensurePublicUser({ email, full_name }) {
   if (rows?.[0]) {
     const { error } = await admin
       .from('users')
-      .update({ full_name, role: 'executive', is_active: true })
+      .update({ full_name, role, is_active: true })
       .eq('email', email);
     if (error) throw error;
-    return { email, action: 'profile_updated' };
+    return { email, action: 'profile_updated', role };
   }
 
   const { error } = await admin.from('users').insert({
     email,
     full_name,
-    role: 'executive',
+    role,
     is_active: true,
   });
   if (error) throw error;
-  return { email, action: 'profile_created' };
+  return { email, action: 'profile_created', role };
 }
 
 async function main() {
-  for (const user of EXECUTIVES) {
+  const targets = onlyEmail
+    ? EXECUTIVES.filter((user) => user.email.toLowerCase() === onlyEmail)
+    : EXECUTIVES;
+
+  if (!targets.length) {
+    console.error(`No executive matched email: ${onlyEmail}`);
+    process.exit(1);
+  }
+
+  for (const user of targets) {
     const auth = await ensureAuthUser(user);
     const profile = await ensurePublicUser(user);
-    console.log(`${user.email}: auth ${auth.action}, ${profile.action}`);
+    console.log(`${user.email}: auth ${auth.action}, ${profile.action}, role ${profile.role}`);
   }
   console.log('Done. Executive admins provisioned.');
 }
